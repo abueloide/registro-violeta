@@ -9,5 +9,5 @@ export FAST_REFRESH=false
 
 cd /app/frontend
 
-# Iniciar con configuración forzada para aceptar todos los hosts
-exec npx react-scripts start
+# Usar react-app-rewired en lugar de react-scripts
+exec npx react-app-rewired start
