@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 from passlib.context import CryptContext
@@ -16,6 +16,10 @@ from pydantic import BaseModel, Field
 from bson import ObjectId
 import logging
 
+# Importar servicios
+from services.drive_service import drive_service
+from services.pdf_service import pdf_service
+
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -23,7 +27,7 @@ logger = logging.getLogger(__name__)
 # Cargar variables de entorno
 load_dotenv()
 
-app = FastAPI(title="Registro Violeta API", version="1.0.0")
+app = FastAPI(title="Registro Violeta API", version="2.0.0")
 
 # Configurar CORS
 app.add_middleware(
@@ -39,12 +43,12 @@ security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Configuración JWT
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", 43200))
 
 # Conexión MongoDB
-MONGO_URL = os.getenv("MONGO_URL")
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017/registro_violeta")
 client = MongoClient(MONGO_URL)
 db = client.registro_violeta
 
@@ -74,12 +78,13 @@ class SesionTerapeutica(BaseModel):
     objetivo_sesion: str
     desarrollo_objetivo: str
     ejercicios_actividades: str
-    herramientas_entregadas: str
+    herramientas_entregadas: Optional[str] = ""
     avances_proceso_terapeutico: str
     cierre_sesion: str
-    observaciones: str
+    observaciones: Optional[str] = ""
     firma_terapeuta: str
     fundacion: str
+    tipo_sesion: Optional[str] = "seguimiento"  # seguimiento, primera, crisis, cierre
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -91,6 +96,14 @@ class ProfileCreate(BaseModel):
     estado_caso: str = "activo"
     terapeuta_asignado: str
     fundacion: str
+    notas_generales: Optional[str] = None
+
+class ProfileUpdate(BaseModel):
+    edad_aproximada: Optional[str] = None
+    situacion_general: Optional[str] = None
+    tipo_violencia: Optional[str] = None
+    estado_caso: Optional[str] = None
+    terapeuta_asignado: Optional[str] = None
     notas_generales: Optional[str] = None
 
 # Funciones de utilidad
@@ -191,9 +204,49 @@ async def create_session(session: SesionTerapeutica, current_user: dict = Depend
         session_dict["updated_at"] = datetime.utcnow()
         session_dict["created_by"] = str(current_user["_id"])
         
+        # Insertar en MongoDB
         result = sessions_collection.insert_one(session_dict)
+        session_id = str(result.inserted_id)
         
-        return {"message": "Session created successfully", "session_id": str(result.inserted_id)}
+        # Generar PDF
+        pdf_content = pdf_service.create_session_pdf(session_dict)
+        
+        if pdf_content and drive_service.service:
+            # Obtener o crear carpetas en Drive
+            folders = drive_service.get_or_create_user_folder(
+                session.codigo_usuaria, 
+                session.fundacion
+            )
+            
+            if folders:
+                # Subir PDF a Google Drive
+                filename = f"Sesion_{session.sesion_no}_{session.fecha}.pdf"
+                file_id = drive_service.upload_file(
+                    pdf_content,
+                    filename,
+                    folders['sesiones_folder_id']
+                )
+                
+                if file_id:
+                    # Actualizar la sesión con el ID del archivo en Drive
+                    sessions_collection.update_one(
+                        {"_id": ObjectId(session_id)},
+                        {
+                            "$set": {
+                                "drive_file_id": file_id,
+                                "drive_folder_id": folders['sesiones_folder_id'],
+                                "pdf_filename": filename
+                            }
+                        }
+                    )
+                    
+                    logger.info(f"Session {session_id} saved to Drive with file ID {file_id}")
+        
+        return {
+            "message": "Session created successfully", 
+            "session_id": session_id,
+            "pdf_generated": pdf_content is not None
+        }
     except Exception as e:
         logger.error(f"Error creating session: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -210,6 +263,10 @@ async def get_sessions(current_user: dict = Depends(get_current_user), codigo_us
         # Convertir ObjectId a string
         for session in sessions:
             session["_id"] = str(session["_id"])
+            if "created_at" in session:
+                session["created_at"] = session["created_at"].isoformat()
+            if "updated_at" in session:
+                session["updated_at"] = session["updated_at"].isoformat()
             
         return {"sessions": sessions}
     except Exception as e:
@@ -219,11 +276,19 @@ async def get_sessions(current_user: dict = Depends(get_current_user), codigo_us
 @app.get("/api/sessions/{session_id}")
 async def get_session(session_id: str, current_user: dict = Depends(get_current_user)):
     try:
-        session = sessions_collection.find_one({"_id": ObjectId(session_id), "fundacion": current_user["fundacion"]})
+        session = sessions_collection.find_one({
+            "_id": ObjectId(session_id), 
+            "fundacion": current_user["fundacion"]
+        })
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
             
         session["_id"] = str(session["_id"])
+        if "created_at" in session:
+            session["created_at"] = session["created_at"].isoformat()
+        if "updated_at" in session:
+            session["updated_at"] = session["updated_at"].isoformat()
+        
         return session
     except HTTPException:
         raise
@@ -231,10 +296,47 @@ async def get_session(session_id: str, current_user: dict = Depends(get_current_
         logger.error(f"Error getting session: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.get("/api/sessions/{session_id}/pdf")
+async def download_session_pdf(session_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        session = sessions_collection.find_one({
+            "_id": ObjectId(session_id), 
+            "fundacion": current_user["fundacion"]
+        })
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        # Generar PDF en tiempo real si no está en Drive
+        pdf_content = pdf_service.create_session_pdf(session)
+        
+        if not pdf_content:
+            raise HTTPException(status_code=500, detail="Error generating PDF")
+        
+        filename = f"Sesion_{session.get('sesion_no', 'unknown')}_{session.get('fecha', 'unknown')}.pdf"
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading session PDF: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 # Rutas de perfiles
 @app.post("/api/profiles")
 async def create_profile(profile: ProfileCreate, current_user: dict = Depends(get_current_user)):
     try:
+        # Verificar que no exista el código de usuaria
+        existing_profile = profiles_collection.find_one({
+            "codigo_usuaria": profile.codigo_usuaria,
+            "fundacion": profile.fundacion
+        })
+        if existing_profile:
+            raise HTTPException(status_code=400, detail="Profile with this code already exists")
+        
         profile_dict = profile.dict()
         profile_dict["created_at"] = datetime.utcnow()
         profile_dict["updated_at"] = datetime.utcnow()
@@ -242,7 +344,21 @@ async def create_profile(profile: ProfileCreate, current_user: dict = Depends(ge
         
         result = profiles_collection.insert_one(profile_dict)
         
+        # Crear estructura de carpetas en Drive
+        if drive_service.service:
+            folders = drive_service.get_or_create_user_folder(
+                profile.codigo_usuaria, 
+                profile.fundacion
+            )
+            if folders:
+                profiles_collection.update_one(
+                    {"_id": result.inserted_id},
+                    {"$set": {"drive_folders": folders}}
+                )
+        
         return {"message": "Profile created successfully", "profile_id": str(result.inserted_id)}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating profile: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -252,19 +368,195 @@ async def get_profiles(current_user: dict = Depends(get_current_user)):
     try:
         profiles = list(profiles_collection.find({"fundacion": current_user["fundacion"]}).sort("created_at", -1))
         
-        # Convertir ObjectId a string
+        # Convertir ObjectId a string y agregar estadísticas
         for profile in profiles:
             profile["_id"] = str(profile["_id"])
+            if "created_at" in profile:
+                profile["created_at"] = profile["created_at"].isoformat()
+            if "updated_at" in profile:
+                profile["updated_at"] = profile["updated_at"].isoformat()
+            
+            # Agregar conteo de sesiones
+            session_count = sessions_collection.count_documents({
+                "codigo_usuaria": profile["codigo_usuaria"],
+                "fundacion": current_user["fundacion"]
+            })
+            profile["total_sessions"] = session_count
+            
+            # Última sesión
+            last_session = sessions_collection.find_one(
+                {
+                    "codigo_usuaria": profile["codigo_usuaria"],
+                    "fundacion": current_user["fundacion"]
+                },
+                sort=[("created_at", -1)]
+            )
+            if last_session:
+                profile["last_session_date"] = last_session["fecha"]
             
         return {"profiles": profiles}
     except Exception as e:
         logger.error(f"Error getting profiles: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@app.get("/api/profiles/{profile_id}")
+async def get_profile(profile_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        profile = profiles_collection.find_one({
+            "_id": ObjectId(profile_id), 
+            "fundacion": current_user["fundacion"]
+        })
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+            
+        profile["_id"] = str(profile["_id"])
+        if "created_at" in profile:
+            profile["created_at"] = profile["created_at"].isoformat()
+        if "updated_at" in profile:
+            profile["updated_at"] = profile["updated_at"].isoformat()
+        
+        # Obtener sesiones del perfil
+        sessions = list(sessions_collection.find({
+            "codigo_usuaria": profile["codigo_usuaria"],
+            "fundacion": current_user["fundacion"]
+        }).sort("created_at", -1))
+        
+        for session in sessions:
+            session["_id"] = str(session["_id"])
+            if "created_at" in session:
+                session["created_at"] = session["created_at"].isoformat()
+        
+        profile["sessions"] = sessions
+        
+        return profile
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting profile: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.put("/api/profiles/{profile_id}")
+async def update_profile(profile_id: str, profile_update: ProfileUpdate, current_user: dict = Depends(get_current_user)):
+    try:
+        # Verificar que el perfil existe y pertenece a la fundación
+        existing_profile = profiles_collection.find_one({
+            "_id": ObjectId(profile_id),
+            "fundacion": current_user["fundacion"]
+        })
+        if not existing_profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        # Preparar datos de actualización
+        update_data = {k: v for k, v in profile_update.dict().items() if v is not None}
+        update_data["updated_at"] = datetime.utcnow()
+        
+        # Actualizar el perfil
+        result = profiles_collection.update_one(
+            {"_id": ObjectId(profile_id)},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=400, detail="No changes made")
+        
+        return {"message": "Profile updated successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating profile: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+@app.get("/api/profiles/{profile_id}/pdf")
+async def download_profile_pdf(profile_id: str, current_user: dict = Depends(get_current_user)):
+    try:
+        profile = profiles_collection.find_one({
+            "_id": ObjectId(profile_id), 
+            "fundacion": current_user["fundacion"]
+        })
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        # Obtener sesiones del perfil
+        sessions = list(sessions_collection.find({
+            "codigo_usuaria": profile["codigo_usuaria"],
+            "fundacion": current_user["fundacion"]
+        }).sort("created_at", -1))
+        
+        # Generar PDF del perfil
+        pdf_content = pdf_service.create_profile_pdf(profile, sessions)
+        
+        if not pdf_content:
+            raise HTTPException(status_code=500, detail="Error generating PDF")
+        
+        filename = f"Perfil_{profile.get('codigo_usuaria', 'unknown')}.pdf"
+        
+        return Response(
+            content=pdf_content,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading profile PDF: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Rutas de estadísticas y dashboard
+@app.get("/api/dashboard/stats")
+async def get_dashboard_stats(current_user: dict = Depends(get_current_user)):
+    try:
+        # Estadísticas básicas
+        total_profiles = profiles_collection.count_documents({"fundacion": current_user["fundacion"]})
+        total_sessions = sessions_collection.count_documents({"fundacion": current_user["fundacion"]})
+        active_profiles = profiles_collection.count_documents({
+            "fundacion": current_user["fundacion"],
+            "estado_caso": "activo"
+        })
+        
+        # Sesiones por mes (últimos 6 meses)
+        from datetime import datetime, timedelta
+        six_months_ago = datetime.utcnow() - timedelta(days=180)
+        
+        pipeline = [
+            {
+                "$match": {
+                    "fundacion": current_user["fundacion"],
+                    "created_at": {"$gte": six_months_ago}
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "year": {"$year": "$created_at"},
+                        "month": {"$month": "$created_at"}
+                    },
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id.year": 1, "_id.month": 1}}
+        ]
+        
+        sessions_by_month = list(sessions_collection.aggregate(pipeline))
+        
+        return {
+            "total_profiles": total_profiles,
+            "total_sessions": total_sessions,
+            "active_profiles": active_profiles,
+            "sessions_by_month": sessions_by_month
+        }
+    except Exception as e:
+        logger.error(f"Error getting dashboard stats: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 # Ruta de salud
 @app.get("/api/health")
 async def health_check():
-    return {"status": "healthy", "timestamp": datetime.utcnow()}
+    return {
+        "status": "healthy", 
+        "timestamp": datetime.utcnow(),
+        "drive_service": drive_service.service is not None,
+        "database": "connected"
+    }
 
 # Ruta para obtener información del usuario actual
 @app.get("/api/auth/me")
