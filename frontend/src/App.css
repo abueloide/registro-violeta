@@ -1,0 +1,87 @@
+.App {
+  text-align: center;
+}
+
+.App-header {
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+  padding: 20px;
+  color: white;
+}
+
+.violeta-form {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  border: 1px solid rgba(147, 51, 234, 0.1);
+  box-shadow: 0 10px 25px -5px rgba(147, 51, 234, 0.1);
+}
+
+.violeta-button {
+  background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 600;
+  padding: 12px 24px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.violeta-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(147, 51, 234, 0.3);
+}
+
+.violeta-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.violeta-input {
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.violeta-input:focus {
+  border-color: #9333ea;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.1);
+}
+
+.session-card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 20px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.session-card:hover {
+  border-color: #9333ea;
+  box-shadow: 0 8px 25px -5px rgba(147, 51, 234, 0.1);
+  transform: translateY(-2px);
+}
+
+.profile-badge {
+  background: linear-gradient(135deg, #fef3c7 0%, #fbbf24 100%);
+  color: #92400e;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-active {
+  background: linear-gradient(135deg, #d1fae5 0%, #10b981 100%);
+  color: #065f46;
+}
+
+.status-inactive {
+  background: linear-gradient(135deg, #fee2e2 0%, #ef4444 100%);  
+  color: #991b1b;
+}
