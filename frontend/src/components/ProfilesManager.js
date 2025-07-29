@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Users, Plus, Search, Edit, Eye, UserPlus } from 'lucide-react';
+import { Users, Plus, Search, Edit, UserPlus } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
