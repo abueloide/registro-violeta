@@ -19,3 +19,11 @@ vosk==0.3.45
 aiofiles==23.2.1
 httpx==0.25.2
 pillow==10.1.0
+
+# Dependencias adicionales para Google Drive y PDF
+google-oauth2-tool==0.0.3
+PyPDF2==3.0.1
+
+# Para procesamiento de audio (opcional)
+speechrecognition==3.10.0
+openai-whisper==20231117
