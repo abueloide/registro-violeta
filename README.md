@@ -50,29 +50,71 @@
 - **React Hook Form** - Formularios validados
 
 ### Hosting (100% Gratuito)
-- **Vercel** - Frontend (ilimitado gratuito)
 - **Railway** - Backend ($5 crédito mensual gratis)
+- **Vercel** - Frontend (ilimitado gratuito)
 - **MongoDB Atlas** - Base de datos (512MB gratis)
 - **Google Drive** - Almacenamiento (15GB gratis)
 
 ## 🚀 Instalación y Despliegue
 
-### Opción 1: Despliegue Automático (Recomendado)
+### ⚡ **Despliegue Rápido (1-Click)**
 
-#### Backend en Railway
+#### **Paso 1: Backend en Railway**
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/abueloide/registro-violeta&envs=MONGO_URL,JWT_SECRET_KEY&referralCode=_registro-violeta)
+
+**Variables requeridas:**
+```bash
+MONGO_URL=mongodb+srv://usuario:password@cluster.mongodb.net/registro_violeta
+JWT_SECRET_KEY=tu-clave-secreta-generada-con-32-caracteres-minimo
+```
+
+#### **Paso 2: Frontend en Vercel**
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/abueloide/registro-violeta/tree/main/frontend)
+
+**Variable requerida:**
+```bash
+REACT_APP_BACKEND_URL=https://tu-app.railway.app
+```
+
+### 🔧 **Configuración Manual**
+
+#### **1. MongoDB Atlas (Requerido)**
+1. Crear cuenta en [MongoDB Atlas](https://mongodb.com/atlas)
+2. Crear cluster gratuito
+3. Crear usuario de base de datos
+4. Whitelist IP: `0.0.0.0/0`
+5. Obtener connection string
+
+#### **2. Railway (Backend)**
 1. Fork este repositorio
-2. Ir a [railway.app](https://railway.app)
-3. "Deploy from GitHub" → Seleccionar tu fork
-4. Configurar variables de entorno (ver `.env.example`)
-5. Deploy automático ✅
-
-#### Frontend en Vercel
-1. Ir a [vercel.com](https://vercel.com)
-2. "Import Git Repository" → Seleccionar `frontend/`
-3. Build Command: `npm run build`
+2. Conectar repositorio a [Railway](https://railway.app)
+3. Configurar variables de entorno:
+   ```bash
+   MONGO_URL=tu-mongodb-atlas-url
+   JWT_SECRET_KEY=tu-clave-secreta-jwt
+   ```
 4. Deploy automático ✅
 
-### Opción 2: Desarrollo Local
+#### **3. Vercel (Frontend)**
+1. Conectar `frontend/` folder a [Vercel](https://vercel.com)
+2. Configurar variable:
+   ```bash
+   REACT_APP_BACKEND_URL=https://tu-app.railway.app
+   ```
+3. Deploy automático ✅
+
+## 🔑 **Primer Login**
+
+Después del deploy exitoso, usa estas credenciales iniciales:
+
+```
+📧 Email: admin@registrovioleta.org
+🔑 Contraseña: RegistroVioleta2025!
+```
+
+**⚠️ IMPORTANTE:** Cambiar contraseña después del primer login
+
+## 🛠️ **Desarrollo Local**
 
 ```bash
 # Clonar repositorio
@@ -92,73 +134,15 @@ npm install
 npm start
 ```
 
-## ⚙️ Configuración
+## 🚨 **¿Problemas con el Login?**
 
-### Variables de Entorno Requeridas
+Si no puedes iniciar sesión, consulta nuestra [**Guía de Troubleshooting**](TROUBLESHOOTING.md) que incluye:
 
-```bash
-# MongoDB
-MONGO_URL=mongodb+srv://usuario:password@cluster.mongodb.net/registro_violeta
-
-# JWT
-JWT_SECRET_KEY=tu-clave-secreta-muy-segura
-
-# Google Drive (Opcional pero recomendado)
-GOOGLE_DRIVE_CREDENTIALS={"type":"service_account",...}
-
-# Telegram Bot (Opcional)
-TELEGRAM_BOT_TOKEN=tu-token-de-bot
-TELEGRAM_AUTHORIZED_USERS=["123456789","987654321"]
-```
-
-### Configuración de Google Drive
-
-1. Ir a [Google Cloud Console](https://console.cloud.google.com)
-2. Crear proyecto nuevo
-3. Habilitar Google Drive API
-4. Crear Service Account
-5. Descargar clave JSON
-6. Pegar el contenido JSON en `GOOGLE_DRIVE_CREDENTIALS`
-
-### Configuración del Bot de Telegram
-
-1. Hablar con [@BotFather](https://t.me/botfather)
-2. Crear bot: `/newbot`
-3. Obtener token
-4. Agregar token a variables de entorno
-5. Agregar IDs de usuarios autorizados
-
-## 📱 Uso del Sistema
-
-### Para Terapeutas
-
-1. **Crear Perfil de Usuaria**
-   - Código anónimo (ej: MV-001)
-   - Información básica sin datos personales
-   - Asignación de terapeuta
-
-2. **Registrar Sesión Terapéutica**
-   - Formulario estructurado profesional
-   - Objetivo, desarrollo, actividades, herramientas
-   - Avances y cierre de sesión
-   - Generación automática de PDF
-
-3. **Bot de Telegram (Opcional)**
-   - Enviar nota de voz mencionando código
-   - Sistema transcribe y organiza automáticamente
-   - Respaldo en Google Drive
-
-### Para Administradores
-
-1. **Dashboard Ejecutivo**
-   - Estadísticas en tiempo real
-   - Estado de servicios (DB, Drive, PDF)
-   - Reportes por fundación
-
-2. **Gestión de Usuarios**
-   - Crear cuentas por rol
-   - Asignar fundaciones
-   - Control de acceso
+- ✅ Verificaciones básicas
+- 🔧 Diagnóstico paso a paso
+- 🐛 Errores comunes y soluciones
+- 📋 Checklist de deployment
+- 🧪 Tests manuales
 
 ## 💰 Costos de Operación
 
@@ -239,14 +223,13 @@ git push origin feature/nueva-funcionalidad
 ## 📞 Soporte
 
 ### Documentación
+- [**Guía de Troubleshooting**](TROUBLESHOOTING.md) - Solución de problemas
 - [Guía de Usuario Completa](docs/user-guide.md)
 - [API Reference](docs/api-reference.md)
-- [Guía de Despliegue](docs/deployment-guide.md)
 
 ### Comunidad
 - [Discussions](https://github.com/abueloide/registro-violeta/discussions) - Preguntas y sugerencias
 - [Issues](https://github.com/abueloide/registro-violeta/issues) - Reportar bugs
-- Email: registro.violeta@fundacion.org
 
 ### Soporte Prioritario
 Para fundaciones que requieren soporte dedicado, configuración personalizada o capacitación del equipo, contactar para opciones de soporte premium.
@@ -276,8 +259,16 @@ Este proyecto está licenciado bajo MIT License - ver [LICENSE](LICENSE) para de
 
 ---
 
-**¿Listo para digitalizar tu fundación?** 
+**💜 ¿Listo para digitalizar tu fundación?**
 
-[![Deploy Backend](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/abueloide/registro-violeta&envs=MONGO_URL,JWT_SECRET_KEY&referralCode=_registro-violeta)
+**⚡ Deploy en 5 minutos:**
 
-[![Deploy Frontend](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/abueloide/registro-violeta/tree/main/frontend)
+1. **Backend:** [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/abueloide/registro-violeta&envs=MONGO_URL,JWT_SECRET_KEY&referralCode=_registro-violeta)
+
+2. **Frontend:** [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/abueloide/registro-violeta/tree/main/frontend)
+
+3. **MongoDB:** [Crear cuenta Atlas gratuita](https://mongodb.com/atlas)
+
+4. **Login:** `admin@registrovioleta.org` / `RegistroVioleta2025!`
+
+**¿Problemas?** 👉 [**Ver Troubleshooting**](TROUBLESHOOTING.md)
