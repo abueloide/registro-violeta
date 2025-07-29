@@ -6,8 +6,8 @@ export WDS_SOCKET_HOST=0.0.0.0
 export REACT_APP_BACKEND_URL=http://localhost:8001
 export BROWSER=none
 export FAST_REFRESH=false
-export CHOKIDAR_USEPOLLING=true
-export WATCHPACK_POLLING=true
 
 cd /app/frontend
-exec yarn start --host 0.0.0.0 --port 3000 --disable-host-check
+
+# Iniciar con configuración forzada para aceptar todos los hosts
+exec npx react-scripts start
